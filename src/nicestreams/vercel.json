@@ -1,0 +1,7 @@
+{
+    "functions": {
+      "src/nicestreams/__init__.py": {
+        "runtime": "python@3.12.6"
+      }
+    }
+  }
