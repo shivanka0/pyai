@@ -4,6 +4,10 @@ import PyPDF2
 from flask import Flask, render_template, request, jsonify
 from PyPDF2 import PdfReader
 from dotenv import load_dotenv
+import boto3
+
+s3 = boto3.client('s3')
+s3_resource = boto3.resource('s3')
 
 # Load environment variables from .env file
 load_dotenv()
@@ -25,16 +29,14 @@ def extract_text_from_pdf(pdf_file):
 def send_text_to_openai(text):
     completion = client.chat.completions.create(
         model="gpt-4",
-        messages=[
-            {"role": "system", "content": "You summarize the following texts that u get:"},
-            {
-                "role": "user",
-                "content": " " + text
-            }
+        message=[
+            {"role": "system", "content": "You summarize the following texts that you get:"},
+            {"role": "user", "content": " " + text}
         ]
     )
-    text = completion.choices[0].message.content
-    return text
+    return completion.choices[0].message
+
+
 # Route to render the main page
 @app.route('/')
 def index():
@@ -42,48 +44,39 @@ def index():
 
 # Route to handle file upload and process
 @app.route('/upload', methods=['POST'])
-def upload_pdf():
-    if request.files.getlist('notes') is None:
-        return jsonify({'error': 'No file uploaded 1'}), 400
+def upload_file():
+    # Check if the 'notes' key is in the request files
+    if 'notes' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
 
-    # Get all the uploaded files as a list
-    notes = request.files.getlist('notes')  # This retrieves a list of files
+    # Retrieve a list of uploaded files with the name 'notes'
+    notes = request.files.getlist('notes')
 
-    if notes is None:
-        return jsonify({'error': 'No files uploaded 2'}), 400
+    if notes.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
 
-    extracted_texts = []
-
-    # Loop through the list of uploaded files
+    extracted_text = ""
+    # Loop through each file, upload to S3, and extract text
     for note in notes:
-        try:
-            # Extract text from the current PDF
-             extracted_text = extract_text_from_pdf(note)
-             if extracted_text is None:
-                 return jsonify({'error': 'Error processing file'}), 400
-             extracted_texts.append(extracted_text)
-        except Exception as e:
-            return jsonify({'error': f'Error processing file'}), 400
+        # Upload each file to S3
+        upload_success = upload_file(note,'notestreams3',note.filename)
+        if not upload_success:
+            return jsonify({'error': f'Failed to upload {note.filename} to S3'}), 500
 
-    # Combine the texts or handle them individually (if needed)
-    combined_text = " ".join(extracted_texts)
-
-    responses = []
-    for text in extracted_texts:
-        # Send the combined text to OpenAI
+        # Extract text from the uploaded PDF
         try:
-            response = send_text_to_openai(text)
-            responses.append(response)
-            response = ''
+            extracted_text += " " + extract_text_from_pdf(note)
         except Exception as e:
-            return jsonify({'error': str(e)}), 400
-    # # Send the combined text to OpenAI
-    # try:
-    #     response = send_text_to_openai()
-    # except Exception as e:
-    #     return jsonify({'error': str(e)}), 400
-    return jsonify(responses)
+            return jsonify({'error': f'Failed to extract text from {note.filename}: {str(e)}'}), 400
+
+    # Send the extracted text to OpenAI
+    try:
+        response = send_text_to_openai(extracted_text)
+    except Exception as e:
+        return jsonify({'error': f'Failed to get response from OpenAI: {str(e)}'}), 400
+
+    return jsonify(response)
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

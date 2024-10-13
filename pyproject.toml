@@ -17,6 +17,8 @@ dependencies = [
     "env>=0.1.0",
     "python-env>=1.0.0",
     "python-dotenv>=1.0.1",
+    "boto3>=1.35.39",
+    "logging>=0.4.9.6",
 ]
 requires-python = ">=3.12"
 readme = "README.md"

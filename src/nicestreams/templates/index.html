@@ -11,54 +11,52 @@
         <h1 class="text-4xl font-bold text-center mb-8">Upload PDF and Send to OpenAI</h1>
 
         <div class="max-w-lg mx-auto bg-white p-6 rounded-lg shadow-lg">
-            <input type="file" name="notes"  action="/upload" method="POST" enctype="multipart/form-data" multiple id="pdfUpload" accept=".pdf,.docx" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-            <button id="uploadBtn" class="mt-4 w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600">Upload and Process</button>
+            <form id="uploadForm"  action="/upload"  method="POST"enctype="multipart/form-data">
+                <input type="file" name="notes" id="fileUpload" multiple accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" multiple>
+                <button id="uploadBtn" class="mt-4 w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600>Upload</button>
+            </form>
         </div>
 
 
         <div id="responseArea" class="mt-8 p-4 bg-white rounded-lg shadow-lg max-w-lg mx-auto hidden">
-            <h2 class="text-xl font-semibold mb-4">OpenAI Response:</h2>
+            <h2 class="text-xl font-semibold mb-4">Upload</h2>
             <p id="responseText" class="text-gray-700"></p>
         </div>
     </div>
 
     <script>
         document.getElementById('uploadBtn').addEventListener('click', async () => {
-            const fileInput = document.getElementById('pdfUpload');
+            const fileInput = document.getElementById('fileUpload');
+            const responseArea = document.getElementById('responseArea');
+            const responseText = document.getElementById('responseText');
             const formData = new FormData();
 
-            // Append the file to the FormData object
-            for (let i = 0; i < fileInput.files.length; i++) {
-                formData.append('files'+i, fileInput.files[i]);
+           // Check if files are selected
+           if (fileInput.files.length > 0) {
+                // Loop through the selected files and append them to formData
+                for (const file of fileInput.files) {
+                    formData.append('notes', file);  // Append each file
+                }
+            } else {
+                console.error('No files selected');
             }
-            formData.append('files', fileInput.files);
+
+            // Send the file to the server
+            const responses = await fetch('/upload', {
+                method: 'POST',
+                body: formData,
+            });
 
             try {
-                // Send the file to the server
-                const responses = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                // Check if the response is ok (status code 200)
-                if (!response.ok) {
-                    const errorData = await responses.json();
-                    document.getElementById('responseText').innerText = errorData.error;
-                    document.getElementById('responseArea').classList.remove('hidden'); // Show the error response
-                    return;
+            // Check if the response is ok (status code 200)
+                if (response.ok) {
+                    const data = await response.json()
+                    responseText.innerHTML = data.response;
+                    responseArea.classList.remove('hidden');
                 }
-
-                const data = await responses.json();
-
-                // Update the response area with the returned summary
-                for (const response of data.responses) {
-                    document.getElementById('responseText').innerText = response;
-                    document.getElementById('responseArea').classList.remove('hidden');
-                }
-
             } catch (error) {
-                document.getElementById('responseText').innerText = 'An error occurred: ' + error.message;
-                document.getElementById('responseArea').classList.remove('hidden'); // Show the error response
+                responseText.innerText = 'An error occurred: ' + error.message;
+                responseArea.classList.remove('hidden'); // Show the error response
             }
         });
     </script>
